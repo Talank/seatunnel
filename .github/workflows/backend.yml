@@ -18,14 +18,7 @@
 name: Backend
 
 on:
-  push:
-  workflow_call:
-    inputs:
-      TEST_IN_PR:
-        required: false
-        type: string
-        default: 'true'
-
+  workflow_dispatch:
 concurrency:
   group: backend-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -47,7 +40,7 @@ jobs:
 
   code-style:
     name: Code style
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3
@@ -56,10 +49,18 @@ jobs:
       - name: Check code style
         run: ./mvnw --batch-mode --quiet --no-snapshot-updates clean spotless:check
       - name: Check code specification
-        run: ./mvnw -B -T 1 clean test -D"license.skipAddThirdParty"=true -pl seatunnel-ci-tools -am --no-snapshot-updates
+        run: ./mvnw -B -T 1 clean test -D"license.skipAddThirdParty"=true -pl seatunnel-ci-tools -am 
+          --no-snapshot-updates
         env:
           MAVEN_OPTS: -Xmx512m
 
+    strategy:
+      matrix:
+        os: &id001
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+      fail-fast: false
   dead-link:
     name: Dead links
     runs-on: ubuntu-latest
@@ -74,7 +75,7 @@ jobs:
 
   sanity-check:
     name: Sanity check results
-    needs: [ license-header, code-style, dead-link ]
+    needs: [license-header, code-style, dead-link]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -85,7 +86,7 @@ jobs:
           [[ ${{ needs.dead-link.result }} == 'success' ]] || exit 1;
 
   changes:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     outputs:
       api: ${{ steps.filter.outputs.api }}
@@ -121,37 +122,37 @@ jobs:
           file_list=${cv2_files#*$'\n'}
           echo "cv2=$true_or_false" >> $GITHUB_OUTPUT
           echo "cv2_files=$file_list" >> $GITHUB_OUTPUT
-          
+
           cv2_e2e_files=`python tools/update_modules_check/check_file_updates.py ua $workspace apache/dev origin/$current_branch "seatunnel-e2e/seatunnel-connector-v2-e2e/**"`
           true_or_false=${cv2_e2e_files%%$'\n'*}
           file_list=${cv2_e2e_files#*$'\n'}
           echo "cv2-e2e=$true_or_false" >> $GITHUB_OUTPUT
           echo "cv2-e2e_files=$file_list" >> $GITHUB_OUTPUT
-          
+
           engine_files=`python tools/update_modules_check/check_file_updates.py ua $workspace apache/dev origin/$current_branch "seatunnel-engine/**"`
           true_or_false=${engine_files%%$'\n'*}
           file_list=${engine_files#*$'\n'}
           echo "engine=$true_or_false" >> $GITHUB_OUTPUT
           echo "engine_files=$file_list" >> $GITHUB_OUTPUT
-          
+
           deleted_poms_files=`python tools/update_modules_check/check_file_updates.py d $workspace apache/dev origin/$current_branch "**/pom.xml"`
           true_or_false=${deleted_poms_files%%$'\n'*}
           file_list=${deleted_poms_files#*$'\n'}
           echo "deleted-poms=$true_or_false" >> $GITHUB_OUTPUT
           echo "deleted-poms_files=$file_list" >> $GITHUB_OUTPUT
-          
+
           doc_files=`python tools/update_modules_check/check_file_updates.py ua $workspace apache/dev origin/$current_branch "docs/**"`
           true_or_false=${doc_files%%$'\n'*}
           file_list=${doc_files#*$'\n'}
           echo "docs=$true_or_false" >> $GITHUB_OUTPUT
           echo "docs_files=$file_list" >> $GITHUB_OUTPUT
-          
+
           engine_e2e_files=`python tools/update_modules_check/check_file_updates.py ua $workspace apache/dev origin/$current_branch "seatunnel-e2e/seatunnel-engine-e2e/**"`
           true_or_false=${engine_e2e_files%%$'\n'*}
           file_list=${engine_e2e_files#*$'\n'}
           echo "engine-e2e=$true_or_false" >> $GITHUB_OUTPUT
           echo "engine-e2e_files=$file_list" >> $GITHUB_OUTPUT
-          
+
           api_files=`python tools/update_modules_check/check_file_updates.py ua $workspace apache/dev origin/$current_branch "seatunnel-api/**" "seatunnel-common/**" "seatunnel-config/**" "seatunnel-core/**" "seatunnel-e2e/seatunnel-e2e-common/**" "seatunnel-formats/**" "seatunnel-plugin-discovery/**" "seatunnel-transforms-v2/**" "seatunnel-translation/**" "seatunnel-e2e/seatunnel-transforms-v2-e2e/**" "pom.xml" "**/workflows/**" "tools/**" "seatunnel-dist/**"`
           true_or_false=${api_files%%$'\n'*}
           file_list=${api_files#*$'\n'}
@@ -163,7 +164,7 @@ jobs:
 
       - name: Check Connector V2 Update
         id: cv2-modules
-        if: ${{ steps.filter.outputs.cv2 == 'true' }}
+        if: always()
         run: |
           update_files='${{ steps.filter.outputs.cv2_files }}'
           modules=`python tools/update_modules_check/update_modules_check.py cv2 "$update_files"`
@@ -172,7 +173,7 @@ jobs:
 
       - name: Check Connector V2 E2E Update
         id: cv2-e2e-modules
-        if: ${{ steps.filter.outputs.cv2-e2e == 'true' }}
+        if: always()
         run: |
           update_files='${{ steps.filter.outputs.cv2-e2e_files }}'
           modules=`python tools/update_modules_check/update_modules_check.py cv2-e2e "$update_files"`
@@ -181,7 +182,7 @@ jobs:
 
       - name: Check Engine Update
         id: engine-modules
-        if: ${{ steps.filter.outputs.engine == 'true' }}
+        if: always()
         run: |
           update_files='${{ steps.filter.outputs.engine_files }}'
           modules=`python tools/update_modules_check/update_modules_check.py engine "$update_files"`
@@ -190,7 +191,7 @@ jobs:
 
       - name: Check Engine E2E Update
         id: engine-e2e-modules
-        if: ${{ steps.filter.outputs.engine-e2e == 'true' }}
+        if: always()
         run: |
           update_files='${{ steps.filter.outputs.engine-e2e_files }}'
           modules=`python tools/update_modules_check/update_modules_check.py engine-e2e "$update_files"`
@@ -199,7 +200,7 @@ jobs:
 
       - name: Check Deleted Modules
         id: deleted-modules
-        if: ${{ steps.filter.outputs.deleted-poms == 'true' }}
+        if: always()
         run: |
           update_files='${{ steps.filter.outputs.deleted-poms_files }}'
           modules=`python tools/update_modules_check/update_modules_check.py delete "$update_files"`
@@ -209,7 +210,7 @@ jobs:
       - name: Make unit test modules
         id: ut-modules
         timeout-minutes: 60
-        if: ${{ steps.filter.outputs.api == 'false' && (steps.engine-modules.outputs.modules != '' || steps.cv2-modules.outputs.modules != '') }}
+        if: always()
         run: |
           modules='${{ steps.engine-modules.outputs.modules }}${{ steps.cv2-modules.outputs.modules }}'
           modules=${modules: 1}
@@ -219,11 +220,11 @@ jobs:
           if [[ "zz"$delete_modules != "zz" ]];then
             pl_modules=`python tools/update_modules_check/update_modules_check.py rm "$pl_modules" "$delete_modules"`
           fi
-          
+
           if [[ "zz"$pl_modules == "zz" ]];then
             exit 0
           fi
-          
+
           ./mvnw help:evaluate -Dexpression=project.modules -q -DforceStdout -pl $pl_modules > /tmp/sub_module.txt
           sub_modules=`python tools/update_modules_check/update_modules_check.py sub /tmp/sub_module.txt`
           tree_modules="$modules$sub_modules"
@@ -239,7 +240,7 @@ jobs:
       - name: Make integration test modules
         id: it-modules
         timeout-minutes: 60
-        if: ${{ steps.filter.outputs.api == 'false' && (steps.engine-modules.outputs.modules != '' || steps.cv2-modules.outputs.modules != '' || steps.cv2-e2e-modules.outputs.modules != '' || steps.cv2-flink-e2e-modules.outputs.modules != '' || steps.cv2-spark-e2e-modules.outputs.modules != '') }}
+        if: always()
         run: |
           modules='${{ steps.cv2-e2e-modules.outputs.modules }}${{ steps.cv2-flink-e2e-modules.outputs.modules }}${{ steps.cv2-spark-e2e-modules.outputs.modules }}${{ steps.engine-e2e-modules.outputs.modules }}${{ steps.engine-modules.outputs.modules }}${{ steps.cv2-modules.outputs.modules }}'
           modules=${modules: 1}
@@ -249,11 +250,11 @@ jobs:
           if [[ "zz"$delete_modules != "zz" ]];then
             pl_modules=`python tools/update_modules_check/update_modules_check.py rm "$pl_modules" "$delete_modules"`
           fi
-          
+
           if [[ "zz"$pl_modules == "zz" ]];then
             exit 0
           fi
-          
+
           ./mvnw help:evaluate -Dexpression=project.modules -q -DforceStdout -pl $pl_modules > /tmp/sub_module.txt
           sub_modules=`python tools/update_modules_check/update_modules_check.py sub /tmp/sub_module.txt`
           tree_modules="$modules$sub_modules"
@@ -263,11 +264,15 @@ jobs:
           echo $build_modules
           echo "modules=$build_modules" >> $GITHUB_OUTPUT
 
+    strategy:
+      matrix:
+        os: *id001
+      fail-fast: false
   dependency-license:
-    if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
+    if: always()
     name: Dependency licenses
-    needs: [ changes, sanity-check ]
-    runs-on: ubuntu-latest
+    needs: [changes, sanity-check]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v3
@@ -289,9 +294,13 @@ jobs:
       - name: Check Dependencies Licenses
         run: tools/dependencies/checkLicense.sh
 
+    strategy:
+      matrix:
+        os: *id001
+      fail-fast: false
   document:
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.docs == 'true'
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     name: Build website
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -320,7 +329,7 @@ jobs:
 
   seatunnel-ui:
     if: needs.changes.outputs.api == 'true'
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     name: Build SeaTunnel UI
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -345,13 +354,14 @@ jobs:
           npm run build
 
   unit-test:
-    needs: [ changes, sanity-check ]
-    if: needs.changes.outputs.api == 'true' || (needs.changes.outputs.api == 'false' && needs.changes.outputs.ut-modules != '')
+    needs: [changes, sanity-check]
+    if: needs.changes.outputs.api == 'true' || (needs.changes.outputs.api == 'false' && needs.changes.outputs.ut-modules
+      != '')
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest', 'windows-latest', 'macos-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest', 'windows-latest', 'macos-latest']
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v2
@@ -368,13 +378,14 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   updated-modules-integration-test-part-1:
-    needs: [ changes, sanity-check ]
-    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && needs.changes.outputs.it-modules != ''
+    needs: [changes, sanity-check]
+    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && 
+      needs.changes.outputs.it-modules != ''
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v2
@@ -399,13 +410,14 @@ jobs:
           MAVEN_OPTS: -Xmx2048m
 
   updated-modules-integration-test-part-2:
-    needs: [ changes, sanity-check ]
-    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && needs.changes.outputs.it-modules != ''
+    needs: [changes, sanity-check]
+    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && 
+      needs.changes.outputs.it-modules != ''
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v2
@@ -430,13 +442,14 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   updated-modules-integration-test-part-3:
-    needs: [ changes, sanity-check ]
-    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && needs.changes.outputs.it-modules != ''
+    needs: [changes, sanity-check]
+    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && 
+      needs.changes.outputs.it-modules != ''
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -461,13 +474,14 @@ jobs:
           MAVEN_OPTS: -Xmx2048m
 
   updated-modules-integration-test-part-4:
-    needs: [ changes, sanity-check ]
-    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && needs.changes.outputs.it-modules != ''
+    needs: [changes, sanity-check]
+    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && 
+      needs.changes.outputs.it-modules != ''
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v2
@@ -491,13 +505,14 @@ jobs:
         env:
           MAVEN_OPTS: -Xmx4096m
   updated-modules-integration-test-part-5:
-    needs: [ changes, sanity-check ]
-    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && needs.changes.outputs.it-modules != ''
+    needs: [changes, sanity-check]
+    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && 
+      needs.changes.outputs.it-modules != ''
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -521,13 +536,14 @@ jobs:
         env:
           MAVEN_OPTS: -Xmx2048m
   updated-modules-integration-test-part-6:
-    needs: [ changes, sanity-check ]
-    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && needs.changes.outputs.it-modules != ''
+    needs: [changes, sanity-check]
+    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && 
+      needs.changes.outputs.it-modules != ''
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -551,13 +567,14 @@ jobs:
         env:
           MAVEN_OPTS: -Xmx2048m
   updated-modules-integration-test-part-7:
-    needs: [ changes, sanity-check ]
-    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && needs.changes.outputs.it-modules != ''
+    needs: [changes, sanity-check]
+    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && 
+      needs.changes.outputs.it-modules != ''
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -582,13 +599,14 @@ jobs:
           MAVEN_OPTS: -Xmx2048m
 
   updated-modules-integration-test-part-8:
-    needs: [ changes, sanity-check ]
-    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && needs.changes.outputs.it-modules != ''
+    needs: [changes, sanity-check]
+    if: needs.changes.outputs.api == 'false' && needs.changes.outputs.engine == 'false' && 
+      needs.changes.outputs.it-modules != ''
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -613,13 +631,14 @@ jobs:
           MAVEN_OPTS: -Xmx2048m
 
   engine-v2-it:
-    needs: [ changes, sanity-check ]
-    if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true' || needs.changes.outputs.engine-e2e == 'true'
+    needs: [changes, sanity-check]
+    if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true' || 
+      needs.changes.outputs.engine-e2e == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -638,13 +657,13 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   engine-k8s-it:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || contains(needs.changes.outputs.it-modules, 'seatunnel-engine-k8s-e2e')
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 45
     steps:
       - name: install k8s
@@ -672,7 +691,7 @@ jobs:
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
   transform-v2-it-part-1:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -680,8 +699,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -700,7 +719,7 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   transform-v2-it-part-2:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -708,8 +727,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -728,7 +747,7 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   all-connectors-it-1:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -736,8 +755,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v2
@@ -759,7 +778,7 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   all-connectors-it-2:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -767,8 +786,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v2
@@ -790,7 +809,7 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   all-connectors-it-3:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -798,8 +817,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v2
@@ -821,7 +840,7 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   all-connectors-it-4:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -829,8 +848,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v2
@@ -852,7 +871,7 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   all-connectors-it-5:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -860,8 +879,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v2
@@ -883,7 +902,7 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   all-connectors-it-6:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -891,8 +910,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v2
@@ -914,7 +933,7 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   all-connectors-it-7:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -922,8 +941,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v2
@@ -945,7 +964,7 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   jdbc-connectors-it-part-1:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -953,8 +972,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -973,7 +992,7 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   jdbc-connectors-it-part-2:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -981,8 +1000,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -1001,7 +1020,7 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   jdbc-connectors-it-part-3:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -1009,8 +1028,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -1029,7 +1048,7 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   jdbc-connectors-it-part-4:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -1037,8 +1056,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -1057,7 +1076,7 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   jdbc-connectors-it-part-5:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -1065,8 +1084,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -1085,7 +1104,7 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   jdbc-connectors-it-part-6:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -1093,8 +1112,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -1113,7 +1132,7 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   jdbc-connectors-it-part-7:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || needs.changes.outputs.engine == 'true'
     runs-on: ${{ matrix.os }}
     env:
@@ -1121,8 +1140,8 @@ jobs:
       RUN_ZETA_CONTAINER: ${{ needs.changes.outputs.engine }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -1141,13 +1160,13 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   kudu-connector-it:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || contains(needs.changes.outputs.it-modules, 'connector-kudu-e2e')
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v2
@@ -1166,13 +1185,13 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   amazonSqs-connector-it:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || contains(needs.changes.outputs.it-modules, 'connector-amazonsqs-e2e')
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -1191,13 +1210,13 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   kafka-connector-it:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || contains(needs.changes.outputs.it-modules, 'connector-kafka-e2e')
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -1216,13 +1235,13 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   rocketmq-connector-it:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || contains(needs.changes.outputs.it-modules, 'connector-rocketmq-e2e')
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -1242,13 +1261,13 @@ jobs:
 
 
   doris-connector-it:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || contains(needs.changes.outputs.it-modules, 'connector-doris-e2e')
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -1267,13 +1286,13 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   paimon-connector-it:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || contains(needs.changes.outputs.it-modules, 'connector-paimon-e2e')
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -1292,13 +1311,13 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   oracle-cdc-connector-it:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || contains(needs.changes.outputs.it-modules, 'connector-cdc-oracle-e2e')
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 150
     steps:
       - name: Checkout repository
@@ -1322,13 +1341,13 @@ jobs:
             ./mvnw -B -T 1 verify -DskipUT=true -DskipIT=false -D"license.skipAddThirdParty"=true -D"skip.ui"=true --no-snapshot-updates -pl :connector-cdc-oracle-e2e -am -Pci
 
   connector-file-local-it:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || contains(needs.changes.outputs.it-modules, 'connector-file-local-e2e')
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -1347,13 +1366,13 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   connector-file-sftp-it:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || contains(needs.changes.outputs.it-modules, 'connector-file-sftp-e2e')
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
@@ -1372,13 +1391,13 @@ jobs:
           MAVEN_OPTS: -Xmx4096m
 
   connector-redis-it:
-    needs: [ changes, sanity-check ]
+    needs: [changes, sanity-check]
     if: needs.changes.outputs.api == 'true' || contains(needs.changes.outputs.it-modules, 'connector-redis-e2e')
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        java: [ '8', '11' ]
-        os: [ 'ubuntu-latest' ]
+        java: ['8', '11']
+        os: ['ubuntu-latest']
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v2
